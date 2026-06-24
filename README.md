@@ -64,7 +64,7 @@ docs routes so everything is served from inside the container.
 Prerequisites:
 
 - Docker 24+ with the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed.
-- A pre-built `mineru:2.5-vllm` image locally (see "Build the base image" below).
+- The `mineru:2.5-vllm-offline` image built locally (see "Build the images" below). It is built in two layers on top of `vllm/vllm-openai:v0.20.0-cu130`.
 - An NVIDIA GPU (this service is vLLM-backed).
 
 Run the service:
@@ -73,9 +73,9 @@ Run the service:
 docker compose up -d
 ```
 
-The first run will build the `mineru:2.5-vllm-offline` image from
-`Dockerfile.offline-docs`, which adds the vendored docs assets on top of your
-local `mineru:2.5-vllm` image. Subsequent runs reuse the cached image.
+`docker-compose.yml` references `mineru:2.5-vllm-offline` as a pre-built
+image; it does not build it for you. Make sure that image exists locally
+before running the command.
 
 Once healthy, open:
 
@@ -101,7 +101,7 @@ docker compose down
 前置条件：
 
 - Docker 24+，且已安装 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)。
-- 本地已存在 `mineru:2.5-vllm` 镜像（构建方法见下文"构建基础镜像"）。
+- 本地已存在 `mineru:2.5-vllm-offline` 镜像（构建方法见下文"构建镜像"）。该镜像在 `vllm/vllm-openai:v0.20.0-cu130` 之上分两层构建。
 - 一块 NVIDIA GPU（服务由 vLLM 驱动）。
 
 启动服务：
@@ -110,9 +110,8 @@ docker compose down
 docker compose up -d
 ```
 
-首次运行会根据 `Dockerfile.offline-docs` 在你本地已有的 `mineru:2.5-vllm`
-基础上构建出 `mineru:2.5-vllm-offline` 镜像，把离线 docs 所需的静态资源打
-进去。后续运行会复用已构建的镜像。
+`docker-compose.yml` 把 `mineru:2.5-vllm-offline` 作为已经构建好的镜像
+来引用，不会自动构建。运行这条命令前请先确保该镜像已经存在于本地。
 
 服务健康后，浏览器访问：
 
@@ -135,13 +134,14 @@ docker compose down
 
 ---
 
-## Build the base image / 构建基础镜像
+## Build the images / 构建镜像
 
 ### English
 
-This project assumes you already have the `mineru:2.5-vllm` base image. To
-build it, use the upstream `Dockerfile` shipped in this repo (identical to
-the one in the original project):
+Two images are involved, built in order:
+
+**1. Base image — `mineru:2.5-vllm`** (built from the upstream `Dockerfile` in
+this repo, identical to the one in the original project):
 
 ```bash
 docker build -f Dockerfile -t mineru:2.5-vllm .
@@ -153,13 +153,30 @@ This image:
 2. Installs libgl + Noto fonts (for opencv and CJK characters).
 3. Installs the `mineru[core]` package and downloads all models at build time.
 
-After this image exists locally, `docker compose up -d` will layer the offline
-docs patch on top of it.
+**2. Offline-docs image — `mineru:2.5-vllm-offline`** (built from
+`Dockerfile.offline-docs` in this repo, layered on top of step 1):
+
+```bash
+docker build -f Dockerfile.offline-docs -t mineru:2.5-vllm-offline .
+```
+
+This step:
+
+1. Vendors `redoc.standalone.js` into vllm's swagger-ui static dir.
+2. Copies `mineru_offline_docs.py` into the image.
+3. Injects a two-line shim into `mineru/cli/fast_api.py` so that
+   `apply_offline_docs(app)` runs at startup, overriding the default
+   `/docs` and `/redoc` routes to use the vendored assets.
+
+`docker-compose.yml` references the second image by tag, so make sure
+it exists before running `docker compose up -d`.
 
 ### 中文
 
-本项目假定你本地已经有 `mineru:2.5-vllm` 这个基础镜像。如果还没有，用仓库
-自带的 `Dockerfile` 构建（和原项目一致）：
+整套流程涉及两个镜像，按顺序构建：
+
+**1. 基础镜像 — `mineru:2.5-vllm`**（用仓库自带的 `Dockerfile` 构建，
+与原项目一致）：
 
 ```bash
 docker build -f Dockerfile -t mineru:2.5-vllm .
@@ -171,7 +188,22 @@ docker build -f Dockerfile -t mineru:2.5-vllm .
 2. 安装 libgl 与 Noto 字体（OpenCV 与中文字符支持）。
 3. 安装 `mineru[core]` 包，并在构建阶段下载全部模型。
 
-基础镜像准备好之后，`docker compose up -d` 就会在它之上叠加离线 docs 补丁。
+**2. 离线文档镜像 — `mineru:2.5-vllm-offline`**（用仓库自带的
+`Dockerfile.offline-docs` 构建，叠在第 1 步之上）：
+
+```bash
+docker build -f Dockerfile.offline-docs -t mineru:2.5-vllm-offline .
+```
+
+这一步会做：
+
+1. 把 `redoc.standalone.js` 内嵌到 vllm 的 swagger-ui 静态目录。
+2. 把 `mineru_offline_docs.py` 拷进镜像。
+3. 向 `mineru/cli/fast_api.py` 注入两行 shim，让 `apply_offline_docs(app)`
+   在启动时被调用，把默认的 `/docs`、`/redoc` 路由替换为使用内嵌资源。
+
+`docker-compose.yml` 按 tag 引用第 2 个镜像，运行 `docker compose up -d`
+前请先确保它已经构建好。
 
 ---
 
