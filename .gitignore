@@ -1,0 +1,46 @@
+# --- 临时 / 调试文件 (debug / scratch) ---
+# 浏览 /docs 时下载的源文件参考，与项目无关
+http___localhost_8000_docs.htm
+http___localhost_8000_docs_files/
+
+# 容器内 fastapi/openapi/ 模块的本地副本，仅排查问题时临时拷贝
+openapi/
+
+# Claude Code 本地会话配置
+.claude/
+
+# --- 镜像与构建产物 (image / build artifacts) ---
+# Docker 镜像导出 tar（动辄几十 GB，绝不能进 git）
+*.tar
+*.tar.gz
+
+# Docker buildx / buildkit 临时目录
+buildx-cache/
+.docker/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- 编辑器 / IDE ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- 虚拟环境 ---
+venv/
+.venv/
+env/
+
+# --- 杂项 ---
+*.log
+nul

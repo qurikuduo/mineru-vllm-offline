@@ -1,0 +1,39 @@
+services:
+  mineru-api:
+    image: mineru:2.5-vllm  # 建议替换为你实际构建或拉取的 vLLM 镜像标签
+    container_name: mineru-vllm
+    restart: always
+    # profiles: ["api"]  # 注释掉此行，否则直接运行 docker compose up -d 将不会启动该服务
+    ports:
+      - "8000:8000"  # 推荐加上引号，避免 YAML 解析端口时出现偶发错误
+    environment:
+      MINERU_MODEL_SOURCE: local
+      VLLM_ENABLE_CUDA_COMPATIBILITY: "0"  # 针对 A10 显卡环境补充的兼容性参数
+      HF_HUB_OFFLINE: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      VLLM_NO_USAGE_STATS: "1"
+      MODELSCOPE_ENVIRONMENT: "offline"
+      DO_NOT_TRACK: "1"
+    entrypoint: mineru-api  # 如果你需要完整兼容 OpenAI 格式，此处也可改为上一轮聊到的 mineru-openai-server
+    command: >
+      --host 0.0.0.0
+      --port 8000
+      # --allow-public-http-client
+      --gpu-memory-utilization 0.8
+      --max-num-seqs 4
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    ipc: host
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+    deploy:
+      resources:
+        limits:
+          memory: 12G
+        reservations:
+          memory: 6G
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]  # A10 显卡所在的 ID
+              capabilities: [gpu]
