@@ -1,6 +1,7 @@
 services:
   mineru-api:
-    image: mineru:2.5-vllm  # 建议替换为你实际构建或拉取的 vLLM 镜像标签
+    #image: mineru:2.5-vllm  # 使用了在线js和css资源的 swagger-ui 镜像，相关资源需要联网下载，否则swagger-ui不能正常显示
+    image: mineru:2.5-vllm-offline # 可以离线使用的 swagger-ui 镜像，内置了 vLLM 相关依赖
     container_name: mineru-vllm
     restart: always
     # profiles: ["api"]  # 注释掉此行，否则直接运行 docker compose up -d 将不会启动该服务
