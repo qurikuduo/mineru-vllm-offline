@@ -352,7 +352,7 @@ your environment differs from the defaults):
 | --- | --- | --- |
 | `ports` | `8000:8000` | Host port mapped to the container. |
 | `MINERU_MODEL_SOURCE` | `local` | Use models vendored in the image, not a download at runtime. |
-| `VLLM_ENABLE_CUDA_COMPATIBILITY` | `0` | Set to `1` if you hit CUDA driver issues on older GPUs (e.g. A10). |
+| `VLLM_ENABLE_CUDA_COMPATIBILITY` | `1` | The base image is built with CUDA 13.0. Set to `1` (default) to install the CUDA 12.x compatibility libraries and run on a CUDA 12.4 driver. Set to `0` only if your host driver is already CUDA 13.x. |
 | `HF_HUB_OFFLINE` | `1` | Disallow Hugging Face hub calls at runtime. |
 | `MODELSCOPE_ENVIRONMENT` | `offline` | Disallow ModelScope calls at runtime. |
 | `--gpu-memory-utilization` | `0.8` | Fraction of GPU memory vLLM may use. |
@@ -370,7 +370,7 @@ your environment differs from the defaults):
 | --- | --- | --- |
 | `ports` | `8000:8000` | 宿主机到容器的端口映射 |
 | `MINERU_MODEL_SOURCE` | `local` | 使用镜像内预下载的模型，运行时不再去下载 |
-| `VLLM_ENABLE_CUDA_COMPATIBILITY` | `0` | 老 GPU（如 A10）出现 CUDA 兼容性问题时设为 `1` |
+| `VLLM_ENABLE_CUDA_COMPATIBILITY` | `1` | 基础镜像用 CUDA 13.0 构建。默认 `1` 会安装 CUDA 12.x 兼容库，可在 CUDA 12.4 driver 上运行；只有宿主机已经是 CUDA 13.x driver 时才改回 `0` |
 | `HF_HUB_OFFLINE` | `1` | 禁止运行时访问 Hugging Face |
 | `MODELSCOPE_ENVIRONMENT` | `offline` | 禁止运行时访问 ModelScope |
 | `--gpu-memory-utilization` | `0.8` | vLLM 可使用的显存比例 |

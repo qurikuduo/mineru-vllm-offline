@@ -9,7 +9,7 @@ services:
       - "8000:8000"  # 推荐加上引号，避免 YAML 解析端口时出现偶发错误
     environment:
       MINERU_MODEL_SOURCE: local
-      VLLM_ENABLE_CUDA_COMPATIBILITY: "0"  # 针对 A10 显卡环境补充的兼容性参数
+      VLLM_ENABLE_CUDA_COMPATIBILITY: "1"  # 默认是cuda13.0，设置为 1 向下兼容到 cuda12.4
       HF_HUB_OFFLINE: "1"
       HF_HUB_DISABLE_TELEMETRY: "1"
       VLLM_NO_USAGE_STATS: "1"
