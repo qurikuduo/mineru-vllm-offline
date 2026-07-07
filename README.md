@@ -45,14 +45,14 @@ docs routes so everything is served from inside the container.
   the container.
 - No internet access required at runtime — fully air-gapped friendly.
 - Minimal footprint: a single Python file + a thin Dockerfile on top of the
-  official `mineru:2.5-vllm` image.
+  locally built `mineru:2.5-vllm-cu130` image.
 - Idempotent build: rebuilding the image will not re-apply the patch twice.
 
 ### 中文
 
 - `/docs`（Swagger UI）和 `/redoc` 页面完全由容器自身提供，零外网依赖。
 - 完全离线 / 物理隔离网络友好。
-- 改动极小：仅一个 Python 补丁文件 + 基于 `mineru:2.5-vllm` 的轻量 Dockerfile。
+- 改动极小：仅一个 Python 补丁文件 + 基于 `mineru:2.5-vllm-cu130` 的轻量 Dockerfile。
 - 幂等构建：镜像重建时不会重复注入补丁。
 
 ---
@@ -64,7 +64,7 @@ docs routes so everything is served from inside the container.
 Prerequisites:
 
 - Docker 24+ with the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed.
-- The `mineru:2.5-vllm-offline` image built locally (see "Build the images" below). It is built in two layers on top of `vllm/vllm-openai:v0.20.0-cu130`.
+- The `mineru:2.5-vllm-cu130-offline-docs` image built locally (see "Build the images" below). It is built in two layers using `Dockerfile-offline-cu130-vllm220` and `Dockerfile-offline-cu130-vllm220-offline-docs`.
 - An NVIDIA GPU (this service is vLLM-backed).
 
 Run the service:
@@ -73,7 +73,7 @@ Run the service:
 docker compose up -d
 ```
 
-`docker-compose.yml` references `mineru:2.5-vllm-offline` as a pre-built
+`docker-compose.yml` references `mineru:2.5-vllm-cu130-offline-docs` as a pre-built
 image; it does not build it for you. Make sure that image exists locally
 before running the command.
 
@@ -101,7 +101,7 @@ docker compose down
 前置条件：
 
 - Docker 24+，且已安装 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)。
-- 本地已存在 `mineru:2.5-vllm-offline` 镜像（构建方法见下文"构建镜像"）。该镜像在 `vllm/vllm-openai:v0.20.0-cu130` 之上分两层构建。
+- 本地已存在 `mineru:2.5-vllm-cu130-offline-docs` 镜像（构建方法见下文"构建镜像"）。该镜像通过 `Dockerfile-offline-cu130-vllm220` 与 `Dockerfile-offline-cu130-vllm220-offline-docs` 分两步构建。
 - 一块 NVIDIA GPU（服务由 vLLM 驱动）。
 
 启动服务：
@@ -110,7 +110,7 @@ docker compose down
 docker compose up -d
 ```
 
-`docker-compose.yml` 把 `mineru:2.5-vllm-offline` 作为已经构建好的镜像
+`docker-compose.yml` 把 `mineru:2.5-vllm-cu130-offline-docs` 作为已经构建好的镜像
 来引用，不会自动构建。运行这条命令前请先确保该镜像已经存在于本地。
 
 服务健康后，浏览器访问：
@@ -138,132 +138,71 @@ docker compose down
 
 ### English
 
-Two images are involved, built in order:
+Two images are involved, and must be built in this exact order:
 
-**1. Base image — `mineru:2.5-vllm`** (built from the upstream `Dockerfile` in
-this repo, identical to the one in the original project):
-
-```bash
-docker build -f Dockerfile -t mineru:2.5-vllm .
-```
-
-This image:
-
-1. Starts from `vllm/vllm-openai:v0.20.0-cu130`.
-2. Installs libgl + Noto fonts (for opencv and CJK characters).
-3. Installs the `mineru[core]` package and downloads all models at build time.
-
-**2. Offline-docs image — `mineru:2.5-vllm-offline`** (built from
-`Dockerfile.offline-docs` in this repo, layered on top of step 1):
+**1. Base runtime image — `mineru:2.5-vllm-cu130`**
 
 ```bash
-docker build -f Dockerfile.offline-docs -t mineru:2.5-vllm-offline .
+docker build -f .\Dockerfile-offline-cu130-vllm220 -t mineru:2.5-vllm-cu130 .
 ```
 
-This step:
+**2. Offline-docs image — `mineru:2.5-vllm-cu130-offline-docs`**
 
-1. Vendors `redoc.standalone.js` into vllm's swagger-ui static dir.
-2. Copies `mineru_offline_docs.py` into the image.
-3. Injects a two-line shim into `mineru/cli/fast_api.py` so that
-   `apply_offline_docs(app)` runs at startup, overriding the default
-   `/docs` and `/redoc` routes to use the vendored assets.
+```bash
+docker build -f .\Dockerfile-offline-cu130-vllm220-offline-docs -t mineru:2.5-vllm-cu130-offline-docs .
+```
 
-`docker-compose.yml` references the second image by tag, so make sure
-it exists before running `docker compose up -d`.
+The second step layers the offline docs patch onto the first image so `/docs`
+and `/redoc` can be used without internet access.
+
+After both builds finish, start the service directly with:
+
+```bash
+docker compose up -d
+```
+
+If you need to build for older NVIDIA GPUs that should run with CUDA 12.4
+(for example Tesla V100S or A10), edit `Dockerfile-offline-cu130-vllm220`
+before step 1:
+
+1. Uncomment line 5.
+2. Comment out line 8.
+
+This switches the base image source from the cu130 variant to the cu124
+variant.
 
 ### 中文
 
-整套流程涉及两个镜像，按顺序构建：
+整套流程涉及两个镜像，必须按顺序构建：
 
-**1. 基础镜像 — `mineru:2.5-vllm`**（用仓库自带的 `Dockerfile` 构建，
-与原项目一致）：
-
-```bash
-docker build -f Dockerfile -t mineru:2.5-vllm .
-```
-
-这个镜像会做三件事：
-
-1. 基于 `vllm/vllm-openai:v0.20.0-cu130`。
-2. 安装 libgl 与 Noto 字体（OpenCV 与中文字符支持）。
-3. 安装 `mineru[core]` 包，并在构建阶段下载全部模型。
-
-**2. 离线文档镜像 — `mineru:2.5-vllm-offline`**（用仓库自带的
-`Dockerfile.offline-docs` 构建，叠在第 1 步之上）：
+**1. 运行时基础镜像 — `mineru:2.5-vllm-cu130`**
 
 ```bash
-docker build -f Dockerfile.offline-docs -t mineru:2.5-vllm-offline .
+docker build -f .\Dockerfile-offline-cu130-vllm220 -t mineru:2.5-vllm-cu130 .
 ```
 
-这一步会做：
-
-1. 把 `redoc.standalone.js` 内嵌到 vllm 的 swagger-ui 静态目录。
-2. 把 `mineru_offline_docs.py` 拷进镜像。
-3. 向 `mineru/cli/fast_api.py` 注入两行 shim，让 `apply_offline_docs(app)`
-   在启动时被调用，把默认的 `/docs`、`/redoc` 路由替换为使用内嵌资源。
-
-`docker-compose.yml` 按 tag 引用第 2 个镜像，运行 `docker compose up -d`
-前请先确保它已经构建好。
-
----
-
-## Manual build (without docker compose) / 手动构建
-
-### English
+**2. 离线文档镜像 — `mineru:2.5-vllm-cu130-offline-docs`**
 
 ```bash
-# 1. Build the offline image on top of mineru:2.5-vllm
-docker build \
-  -f Dockerfile.offline-docs \
-  -t mineru:2.5-vllm-offline \
-  .
-
-# 2. Run it
-docker run --gpus all --rm -it \
-  --name mineru-vllm \
-  -p 8000:8000 \
-  -e MINERU_MODEL_SOURCE=local \
-  mineru:2.5-vllm-offline \
-  mineru-api --host 0.0.0.0 --port 8000
+docker build -f .\Dockerfile-offline-cu130-vllm220-offline-docs -t mineru:2.5-vllm-cu130-offline-docs .
 ```
 
-To pin a different mirror for the redoc bundle (e.g. a private registry):
+第 2 步会在第 1 步镜像上叠加离线 docs 补丁，使 `/docs`、`/redoc`
+在无外网环境下可用。
+
+两步构建完成后，直接启动：
 
 ```bash
-docker build \
-  -f Dockerfile.offline-docs \
-  --build-arg REDOC_JS_URL=https://your-mirror/redoc.standalone.js \
-  -t mineru:2.5-vllm-offline \
-  .
+docker compose up -d
 ```
 
-### 中文
+如果你要构建适配旧款 NVIDIA GPU、且需要兼容 CUDA 12.4 的镜像（例如
+Tesla V100S、A10），请先修改 `Dockerfile-offline-cu130-vllm220`：
 
-```bash
-# 1. 在 mineru:2.5-vllm 基础上构建离线镜像
-docker build \
-  -f Dockerfile.offline-docs \
-  -t mineru:2.5-vllm-offline \
-  .
+1. 取消第 5 行注释。
+2. 注释第 8 行。
 
-# 2. 运行
-docker run --gpus all --rm -it \
-  --name mineru-vllm \
-  -p 8000:8000 \
-  -e MINERU_MODEL_SOURCE=local \
-  mineru:2.5-vllm-offline \
-  mineru-api --host 0.0.0.0 --port 8000
-```
-
-如果构建机器上需要走内部镜像源，可以覆盖 `REDOC_JS_URL`：
-
-```bash
-docker build \
-  -f Dockerfile.offline-docs \
-  --build-arg REDOC_JS_URL=https://your-mirror/redoc.standalone.js \
-  -t mineru:2.5-vllm-offline \
-  .
-```
+即从 cu130 基础镜像切换为 cu124 基础镜像。
 
 ---
 
@@ -289,7 +228,7 @@ that exposes `apply_offline_docs(app)`. Calling it does three things:
    `/static/...`. The favicon is replaced with an inline base64 data URL
    so the browser does not try to fetch a remote favicon.
 
-The `Dockerfile.offline-docs` does two things at build time:
+The `Dockerfile-offline-cu130-vllm220-offline-docs` does two things at build time:
 
 - Drops `redoc.standalone.js` (downloaded via Python's `urllib`) into
   vllm's static dir.
@@ -325,7 +264,7 @@ two-line shim is added.
    `/static/...`。favicon 替换为内联 base64 data URL，避免浏览器再去
    拉外网 favicon。
 
-`Dockerfile.offline-docs` 在构建阶段只做两件事：
+`Dockerfile-offline-cu130-vllm220-offline-docs` 在构建阶段只做两件事：
 
 - 用 Python `urllib` 下载 `redoc.standalone.js` 到 vllm 的静态目录。
 - 在 `mineru/cli/fast_api.py` 里、`app = create_app()` 之后注入两行：
@@ -352,14 +291,17 @@ your environment differs from the defaults):
 | --- | --- | --- |
 | `ports` | `8000:8000` | Host port mapped to the container. |
 | `MINERU_MODEL_SOURCE` | `local` | Use models vendored in the image, not a download at runtime. |
-| `VLLM_ENABLE_CUDA_COMPATIBILITY` | `1` | The base image is built with CUDA 13.0. Set to `1` (default) to install the CUDA 12.x compatibility libraries and run on a CUDA 12.4 driver. Set to `0` only if your host driver is already CUDA 13.x. |
+| `VLLM_ENABLE_CUDA_COMPATIBILITY` | `0` | Current compose default targets CUDA 13.0 path. Set to `1` when you need compatibility for CUDA 12.4-12.9 environments. |
 | `HF_HUB_OFFLINE` | `1` | Disallow Hugging Face hub calls at runtime. |
+| `HF_HUB_DISABLE_TELEMETRY` | `1` | Disable Hugging Face telemetry at runtime. |
+| `VLLM_NO_USAGE_STATS` | `1` | Disable vLLM usage statistics reporting. |
 | `MODELSCOPE_ENVIRONMENT` | `offline` | Disallow ModelScope calls at runtime. |
-| `--gpu-memory-utilization` | `0.8` | Fraction of GPU memory vLLM may use. |
-| `--max-num-seqs` | `4` | Max concurrent sequences vLLM will batch. |
-| `devices.device_ids` | `["0"]` | GPU id(s) to bind. |
+| `DO_NOT_TRACK` | `1` | Disable additional tracking signals where supported. |
+| `entrypoint` | `mineru-api` | Starts only the core MinerU document-conversion API service. |
+| `--gpu-memory-utilization` | `0.9` | Fraction of GPU memory vLLM may use. |
+| `--max-num-seqs` | `2` | Max concurrent sequences vLLM will batch. |
 | `resources.limits.memory` | `12G` | Container memory cap. |
-| `REDOC_JS_URL` (build arg) | `https://cdn.jsdelivr.net/npm/redoc@2/bundles/redoc.standalone.js` | Source of the vendored redoc bundle. |
+| `healthcheck` | `curl -f http://localhost:8000/health` | Container health probe used by compose. |
 
 ### 中文
 
@@ -370,14 +312,17 @@ your environment differs from the defaults):
 | --- | --- | --- |
 | `ports` | `8000:8000` | 宿主机到容器的端口映射 |
 | `MINERU_MODEL_SOURCE` | `local` | 使用镜像内预下载的模型，运行时不再去下载 |
-| `VLLM_ENABLE_CUDA_COMPATIBILITY` | `1` | 基础镜像用 CUDA 13.0 构建。默认 `1` 会安装 CUDA 12.x 兼容库，可在 CUDA 12.4 driver 上运行；只有宿主机已经是 CUDA 13.x driver 时才改回 `0` |
+| `VLLM_ENABLE_CUDA_COMPATIBILITY` | `0` | 当前 compose 默认走 CUDA 13.0 路径；如果要兼容 CUDA 12.4-12.9 环境，请改为 `1` |
 | `HF_HUB_OFFLINE` | `1` | 禁止运行时访问 Hugging Face |
+| `HF_HUB_DISABLE_TELEMETRY` | `1` | 关闭 Hugging Face 遥测 |
+| `VLLM_NO_USAGE_STATS` | `1` | 关闭 vLLM 使用统计上报 |
 | `MODELSCOPE_ENVIRONMENT` | `offline` | 禁止运行时访问 ModelScope |
-| `--gpu-memory-utilization` | `0.8` | vLLM 可使用的显存比例 |
-| `--max-num-seqs` | `4` | vLLM 同时批处理的最大序列数 |
-| `devices.device_ids` | `["0"]` | 绑定的 GPU id |
+| `DO_NOT_TRACK` | `1` | 关闭额外追踪信号 |
+| `entrypoint` | `mineru-api` | 仅启动核心 MinerU 文档转换 API 服务 |
+| `--gpu-memory-utilization` | `0.9` | vLLM 可使用的显存比例 |
+| `--max-num-seqs` | `2` | vLLM 同时批处理的最大序列数 |
 | `resources.limits.memory` | `12G` | 容器内存上限 |
-| `REDOC_JS_URL`（构建参数） | `https://cdn.jsdelivr.net/npm/redoc@2/bundles/redoc.standalone.js` | redoc 离线包的下载源 |
+| `healthcheck` | `curl -f http://localhost:8000/health` | compose 使用的容器健康检查 |
 
 ---
 
@@ -426,8 +371,8 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/static/redoc.stan
 
 | File | Purpose |
 | --- | --- |
-| `Dockerfile` | Builds the upstream `mineru:2.5-vllm` base image. |
-| `Dockerfile.offline-docs` | Layers the offline docs patch on top of `mineru:2.5-vllm`. |
+| `Dockerfile-offline-cu130-vllm220` | Builds base runtime image `mineru:2.5-vllm-cu130`. |
+| `Dockerfile-offline-cu130-vllm220-offline-docs` | Layers offline docs patch on top of `mineru:2.5-vllm-cu130`. |
 | `mineru_offline_docs.py` | The offline docs patch module. |
 | `docker-compose.yml` | One-command run config for the offline image. |
 | `README.md` | This file. |

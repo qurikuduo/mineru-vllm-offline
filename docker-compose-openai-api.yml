@@ -1,15 +1,15 @@
 services:
   mineru-api:
-    image: mineru:2.5-vllm-cu130-offline-docs  # 建议替换为你实际构建或拉取的 vLLM 镜像标签
-    gpus: all
+    #image: mineru:2.5-vllm  # 使用了在线js和css资源的 swagger-ui 镜像，相关资源需要联网下载，否则swagger-ui不能正常显示
+    image: mineru:2.5-vllm-offline # 可以离线使用的 swagger-ui 镜像，内置了 vLLM 相关依赖
     container_name: mineru-vllm
-    restart: unless-stopped
+    restart: always
     # profiles: ["api"]  # 注释掉此行，否则直接运行 docker compose up -d 将不会启动该服务
     ports:
       - "8000:8000"  # 推荐加上引号，避免 YAML 解析端口时出现偶发错误
     environment:
       MINERU_MODEL_SOURCE: local
-      VLLM_ENABLE_CUDA_COMPATIBILITY: "0"  # 兼容 cuda 12.4-12.9时设置为1，默认为0兼容 cuda 13.0
+      VLLM_ENABLE_CUDA_COMPATIBILITY: "1"  # 默认是cuda13.0，设置为 1 向下兼容到 cuda12.4
       HF_HUB_OFFLINE: "1"
       HF_HUB_DISABLE_TELEMETRY: "1"
       VLLM_NO_USAGE_STATS: "1"
@@ -19,9 +19,9 @@ services:
     command: >
       --host 0.0.0.0
       --port 8000
-      --allow-public-http-client 
-      --gpu-memory-utilization 0.9 
-      --max-num-seqs 2
+      # --allow-public-http-client
+      --gpu-memory-utilization 0.8
+      --max-num-seqs 4
     ulimits:
       memlock: -1
       stack: 67108864
@@ -30,8 +30,11 @@ services:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
     deploy:
       resources:
-        limits: 
+        limits:
           memory: 12G
         reservations:
-          memory: 4G
-    
+          memory: 6G
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]  # A10 显卡所在的 ID
+              capabilities: [gpu]

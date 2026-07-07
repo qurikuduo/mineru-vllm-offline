@@ -1,0 +1,48 @@
+# Use DaoCloud mirrored vllm image for China region for gpu with Volta、Turing、Ampere、Ada Lovelace、Hopper、Blackwell architecture (7.0 <= Compute Capability <= 12.0)
+# Compute Capability version query (https://developer.nvidia.com/cuda-gpus)
+# support x86_64 architecture and ARM(AArch64) architecture
+# cu124
+#FROM docker.m.daocloud.io/vllm/vllm-openai:v0.11.2
+
+# cu130
+FROM docker.m.daocloud.io/vllm/vllm-openai:v0.22.0
+
+
+# Install libgl for opencv support & Noto fonts for Chinese characters
+RUN apt-get update && \
+    apt-get install -y \
+    fonts-noto-core \
+    fonts-noto-cjk \
+    fontconfig \
+    libgl1 && \
+    fc-cache -fv && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install mineru latest
+RUN python3 -m pip install -U 'mineru[core]>=3.0.0' -i https://mirrors.aliyun.com/pypi/simple --break-system-packages && \
+    python3 -m pip cache purge
+
+# Download models and update the configuration file
+RUN /bin/bash -c "mineru-models-download -s modelscope -m all"
+
+# ====== 新增：修复 VLM 模型的 HuggingFace 缓存结构 ======
+RUN mkdir -p /root/.cache/huggingface/hub/models--opendatalab--MinerU2.5-Pro-2604-1.2B/snapshots/0000000000000000 && \
+    mkdir -p /root/.cache/huggingface/hub/models--opendatalab--MinerU2.5-Pro-2604-1.2B/refs && \
+    echo "0000000000000000" > /root/.cache/huggingface/hub/models--opendatalab--MinerU2.5-Pro-2604-1.2B/refs/main && \
+    ln -sf /root/.cache/modelscope/hub/models/OpenDataLab/MinerU2.5-Pro-2604-1.2B/* /root/.cache/huggingface/hub/models--opendatalab--MinerU2.5-Pro-2604-1.2B/snapshots/0000000000000000/
+# =======================================================
+
+# ====== 新增：将离线和屏蔽代理固化到镜像环境变量中 ======
+ENV MINERU_MODEL_SOURCE=local \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
+    HTTP_PROXY="" \
+    HTTPS_PROXY="" \
+    http_proxy="" \
+    https_proxy=""
+# =======================================================
+
+# Set the entry point (因为环境变量已经通过 ENV 设置，这里可以简化)
+ENTRYPOINT ["/bin/bash", "-c", "exec \"$@\"", "--"]
+

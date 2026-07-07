@@ -1,0 +1,49 @@
+# Offline (air-gapped) variant of the local mineru:2.5-vllm image.
+# Adds vendored Swagger UI / ReDoc assets so /docs and /redoc work without
+# internet access.
+#
+# Build:
+#   docker build -f Dockerfile.offline-docs -t mineru:2.5-vllm-offline .
+# Run (example):
+#   docker run --gpus all --name mineru-vllm \
+#       -p 8000:8000 mineru:2.5-vllm-offline mineru-api --host 0.0.0.0 --port 8000
+FROM mineru:2.5-vllm-cu130
+
+# Patch mineru FastAPI app to serve Swagger UI / ReDoc from vendored assets
+# (works in air-gapped LANs with no internet access).
+COPY mineru_offline_docs.py /usr/local/lib/python3.12/dist-packages/mineru_offline_docs.py
+ARG REDOC_JS_URL=https://cdn.jsdelivr.net/npm/redoc@2/bundles/redoc.standalone.js
+RUN python3 - <<PY
+import pathlib, shutil, urllib.request
+
+# 1. Download the redoc bundle into vllm's swagger-ui static dir.
+redoc_url = "${REDOC_JS_URL}"
+static_dir = pathlib.Path(
+    "/usr/local/lib/python3.12/dist-packages/vllm/"
+    "entrypoints/serve/instrumentator/static"
+)
+static_dir.mkdir(parents=True, exist_ok=True)
+urllib.request.urlretrieve(redoc_url, static_dir / "redoc.standalone.js")
+print(f"downloaded redoc from {redoc_url}")
+
+# 2. Patch mineru/cli/fast_api.py to call apply_offline_docs(app) on startup.
+p = pathlib.Path("/usr/local/lib/python3.12/dist-packages/mineru/cli/fast_api.py")
+src = p.read_text()
+marker = "app = create_app()"
+inject = """
+
+# --- mineru offline docs patch (air-gapped /docs & /redoc) ---
+from mineru_offline_docs import apply_offline_docs
+apply_offline_docs(app)
+"""
+if "apply_offline_docs" in src:
+    print("mineru offline docs patch: already applied, skipping")
+else:
+    assert marker in src, f"marker {marker!r} not found in {p}"
+    p.write_text(src.replace(marker, marker + inject, 1))
+    # Invalidate any stale .pyc so the patched module is loaded next time.
+    cache = p.parent / "__pycache__"
+    if cache.exists():
+        shutil.rmtree(cache)
+    print("mineru offline docs patch: applied")
+PY
