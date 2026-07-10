@@ -22,10 +22,11 @@ from fastapi.staticfiles import StaticFiles
 
 # vLLM ships swagger-ui-bundle.js + swagger-ui.css in its instrumentator
 # static dir. We drop redoc.standalone.js next to them at build time.
-STATIC_DIR = pathlib.Path(
-    "/usr/local/lib/python3.12/dist-packages/vllm/"
-    "entrypoints/serve/instrumentator/static"
-)
+#STATIC_DIR = pathlib.Path(
+#    "/usr/local/lib/python3.12/dist-packages/vllm/"
+#    "entrypoints/serve/instrumentator/static"
+#)
+STATIC_DIR = pathlib.Path("/opt/mineru-static")
 
 SWAGGER_JS_URL = "/static/swagger-ui-bundle.js"
 SWAGGER_CSS_URL = "/static/swagger-ui.css"

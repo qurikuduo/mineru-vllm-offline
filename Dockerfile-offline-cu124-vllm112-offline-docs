@@ -1,4 +1,4 @@
-FROM mineru:2.5-vllm-cu130
+FROM mineru:2.5-vllm-cu124
 
 #
 # offline swagger/redoc

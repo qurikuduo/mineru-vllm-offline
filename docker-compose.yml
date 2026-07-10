@@ -1,7 +1,6 @@
 services:
   mineru-api:
     image: mineru:2.5-vllm-cu130-offline-docs  # 建议替换为你实际构建或拉取的 vLLM 镜像标签
-    gpus: all
     container_name: mineru-vllm
     restart: unless-stopped
     # profiles: ["api"]  # 注释掉此行，否则直接运行 docker compose up -d 将不会启动该服务
@@ -31,7 +30,10 @@ services:
     deploy:
       resources:
         limits: 
-          memory: 12G
+          memory: 16G
         reservations:
           memory: 4G
-    
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu] 
